@@ -293,7 +293,7 @@ class WC_Evosus_Sync_Plugin {
         <div class="notice notice-warning">
             <p>
                 <?php _e('WooCommerce Evosus Sync is almost ready!', 'woocommerce-evosus-sync'); ?>
-                <a href="<?php echo admin_url('admin.php?page=evosus-sync&tab=settings'); ?>">
+                <a href="<?php echo esc_url(admin_url('admin.php?page=evosus-sync&tab=settings')); ?>">
                     <?php _e('Configure your API settings', 'woocommerce-evosus-sync'); ?>
                 </a>
             </p>
@@ -305,7 +305,7 @@ class WC_Evosus_Sync_Plugin {
      * Add settings link to plugins page
      */
     public function add_action_links($links) {
-        $settings_link = '<a href="' . admin_url('admin.php?page=evosus-sync') . '">' . __('Dashboard', 'woocommerce-evosus-sync') . '</a>';
+        $settings_link = '<a href="' . esc_url(admin_url('admin.php?page=evosus-sync')) . '">' . esc_html__('Dashboard', 'woocommerce-evosus-sync') . '</a>';
         array_unshift($links, $settings_link);
         return $links;
     }

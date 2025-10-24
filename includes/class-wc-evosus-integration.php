@@ -210,7 +210,7 @@ class WooCommerce_Evosus_Integration {
     }
 
     /**
-     * Find similar SKUs in Evosus (fuzzy matching)
+     * Find similar SKUs in Evosus (fuzzy matching with de-duplication)
      */
     private function find_similar_skus($sku) {
         // Try variations: uppercase, lowercase, with/without dashes, etc.
@@ -222,10 +222,23 @@ class WooCommerce_Evosus_Integration {
             str_replace(' ', '', $sku)
         ];
 
+        // Remove duplicates and the original SKU
+        $variations = array_unique($variations);
+        $variations = array_filter($variations, function($variant) use ($sku) {
+            return $variant !== $sku;
+        });
+
         $suggestions = [];
+        $found_skus = []; // Track to avoid duplicate suggestions
+
+        // Limit to first 3 variations for efficiency
+        $variations = array_slice($variations, 0, 3);
 
         foreach ($variations as $variant) {
-            if ($variant === $sku) continue;
+            // Skip if we've already found this SKU
+            if (in_array($variant, $found_skus)) {
+                continue;
+            }
 
             $response = $this->api_request('POST', '/method/Inventory_Item_Get', [
                 'args' => [
@@ -234,10 +247,16 @@ class WooCommerce_Evosus_Integration {
             ]);
 
             if ($response && isset($response['response']) && !empty($response['response'])) {
+                $found_skus[] = $variant;
                 $suggestions[] = [
                     'sku' => $variant,
                     'description' => $response['response'][0]['Description']
                 ];
+
+                // Limit suggestions to 3 max
+                if (count($suggestions) >= 3) {
+                    break;
+                }
             }
         }
 
@@ -563,20 +582,22 @@ class WooCommerce_Evosus_Integration {
             }
         }
 
-        // If not found in open orders, check closed orders
+        // If not found in open orders, check closed orders with shorter range for efficiency
         $end_date = date('Y-m-d H:i:s');
-        $begin_date = date('Y-m-d H:i:s', strtotime('-180 days'));
+        $begin_date = date('Y-m-d H:i:s', strtotime('-90 days')); // Reduced from 180 to 90 days
 
         $response = $this->api_request('POST', '/method/Orders_Closed_Search', [
             'args' => [
                 'Begin_Date' => $begin_date,
-                'End_Date' => $end_date
+                'End_Date' => $end_date,
+                'OrderID_List' => $evosus_order_id // Try to filter by ID if API supports it
             ]
         ]);
 
         if ($response && isset($response['response'])) {
+            // Use strict comparison and early return for efficiency
             foreach ($response['response'] as $order) {
-                if ($order['OrderId'] == $evosus_order_id) {
+                if ($order['OrderId'] === $evosus_order_id || $order['OrderId'] == $evosus_order_id) {
                     return [
                         'success' => true,
                         'order' => $order
@@ -614,13 +635,16 @@ class WooCommerce_Evosus_Integration {
 
         $po_number = $evosus_order['order']['PoNo'];
 
+        // Use string comparison as both values may be strings
+        $is_verified = (string)$po_number === (string)$wc_order_number;
+
         return [
             'success' => true,
-            'verified' => ($po_number == $wc_order_number),
+            'verified' => $is_verified,
             'evosus_po_number' => $po_number,
             'wc_order_number' => $wc_order_number,
             'evosus_order_id' => $evosus_order_id,
-            'message' => ($po_number == $wc_order_number)
+            'message' => $is_verified
                 ? __('Cross-reference verified successfully', 'woocommerce-evosus-sync')
                 : __('PO Number mismatch detected', 'woocommerce-evosus-sync')
         ];

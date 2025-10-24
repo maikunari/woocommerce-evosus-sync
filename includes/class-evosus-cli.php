@@ -330,8 +330,8 @@ class Evosus_CLI {
 
         WP_CLI::log("Testing API connection...");
 
-        // Try to search for a customer (simple test)
-        $result = $this->integration->search_customer_by_email('test@example.com');
+        // Try to search for a customer (simple test) - using sanitized email
+        $result = $this->integration->search_customer_by_email(sanitize_email('test@example.com'));
 
         if ($result !== false) {
             WP_CLI::success("API connection successful!");

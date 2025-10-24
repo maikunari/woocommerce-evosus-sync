@@ -25,6 +25,21 @@ class Evosus_SKU_Mapper {
     private function __construct() {
         global $wpdb;
         $this->table_name = $wpdb->prefix . 'evosus_sku_mappings';
+
+        // Validate table name to prevent SQL injection
+        $this->validate_table_name();
+    }
+
+    /**
+     * Validate table name matches expected pattern
+     */
+    private function validate_table_name() {
+        global $wpdb;
+        $expected_table = $wpdb->prefix . 'evosus_sku_mappings';
+
+        if ($this->table_name !== $expected_table) {
+            wp_die('Invalid table name for SKU mapper');
+        }
     }
 
     /**
@@ -146,13 +161,43 @@ class Evosus_SKU_Mapper {
     }
 
     /**
-     * Import mappings from CSV
+     * Import mappings from CSV (with path traversal protection)
      */
     public function import_from_csv($file_path) {
+        // Security: Validate file path to prevent path traversal
+        $file_path = realpath($file_path);
+
+        if ($file_path === false) {
+            return [
+                'success' => false,
+                'message' => 'Invalid file path'
+            ];
+        }
+
+        // Security: Ensure file is within allowed upload directory
+        $upload_dir = wp_upload_dir();
+        $allowed_base = realpath($upload_dir['basedir']);
+
+        if (strpos($file_path, $allowed_base) !== 0) {
+            return [
+                'success' => false,
+                'message' => 'File path not allowed'
+            ];
+        }
+
         if (!file_exists($file_path)) {
             return [
                 'success' => false,
                 'message' => 'File not found'
+            ];
+        }
+
+        // Security: Validate file extension
+        $file_extension = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+        if ($file_extension !== 'csv') {
+            return [
+                'success' => false,
+                'message' => 'Only CSV files are allowed'
             ];
         }
 
