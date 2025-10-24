@@ -41,7 +41,7 @@ class Evosus_Webhook {
     }
 
     /**
-     * Validate webhook request
+     * Validate webhook request with secure secret verification
      */
     public function validate_webhook_request($request) {
         // Check if webhooks are enabled
@@ -57,13 +57,22 @@ class Evosus_Webhook {
         $webhook_secret = get_option('evosus_webhook_secret', '');
         $provided_secret = $request->get_header('X-Evosus-Secret');
 
+        // Security: Require webhook secret to be configured
         if (empty($webhook_secret)) {
-            $this->logger->log_warning('Webhook secret not configured');
-            return true; // Allow if not configured
+            $this->logger->log_error('Webhook secret not configured - rejecting request');
+            return new WP_Error(
+                'no_secret_configured',
+                __('Webhook secret must be configured before webhooks can be used', 'woocommerce-evosus-sync'),
+                ['status' => 403]
+            );
         }
 
-        if ($provided_secret !== $webhook_secret) {
-            $this->logger->log_error('Invalid webhook secret provided');
+        // Security: Use timing-safe comparison to prevent timing attacks
+        if (!hash_equals($webhook_secret, (string)$provided_secret)) {
+            $this->logger->log_error('Invalid webhook secret provided', [
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
+            ]);
             return new WP_Error(
                 'invalid_secret',
                 __('Invalid webhook secret', 'woocommerce-evosus-sync'),
@@ -315,12 +324,15 @@ class Evosus_Webhook {
     }
 
     /**
-     * Find WooCommerce order by Evosus order ID
+     * Find WooCommerce order by Evosus order ID (SQL injection safe)
      */
     private function find_order_by_evosus_id($evosus_order_id) {
         global $wpdb;
 
-        // Try post meta first
+        // Sanitize the evosus_order_id
+        $evosus_order_id = sanitize_text_field($evosus_order_id);
+
+        // Try post meta first - $wpdb->postmeta is a safe WordPress global
         $order_id = $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT post_id FROM {$wpdb->postmeta}
@@ -332,23 +344,39 @@ class Evosus_Webhook {
         );
 
         if ($order_id) {
-            return $order_id;
+            return absint($order_id);
         }
 
-        // Try HPOS if enabled
+        // Try HPOS if enabled - validate table exists first
         if (Evosus_Helpers::is_hpos_enabled()) {
-            $order_id = $wpdb->get_var(
+            $hpos_table = $wpdb->prefix . 'wc_orders_meta';
+
+            // Verify table exists to prevent errors
+            $table_exists = $wpdb->get_var(
                 $wpdb->prepare(
-                    "SELECT order_id FROM {$wpdb->prefix}wc_orders_meta
-                    WHERE meta_key = '_evosus_order_id'
-                    AND meta_value = %s
-                    LIMIT 1",
-                    $evosus_order_id
+                    "SHOW TABLES LIKE %s",
+                    $hpos_table
                 )
             );
+
+            if ($table_exists === $hpos_table) {
+                $order_id = $wpdb->get_var(
+                    $wpdb->prepare(
+                        "SELECT order_id FROM {$hpos_table}
+                        WHERE meta_key = '_evosus_order_id'
+                        AND meta_value = %s
+                        LIMIT 1",
+                        $evosus_order_id
+                    )
+                );
+
+                if ($order_id) {
+                    return absint($order_id);
+                }
+            }
         }
 
-        return $order_id;
+        return null;
     }
 
     /**

@@ -25,6 +25,21 @@ class Evosus_Logger {
     private function __construct() {
         global $wpdb;
         $this->table_name = $wpdb->prefix . 'evosus_logs';
+
+        // Validate table name to prevent SQL injection
+        $this->validate_table_name();
+    }
+
+    /**
+     * Validate table name matches expected pattern
+     */
+    private function validate_table_name() {
+        global $wpdb;
+        $expected_table = $wpdb->prefix . 'evosus_logs';
+
+        if ($this->table_name !== $expected_table) {
+            wp_die('Invalid table name for logger');
+        }
     }
 
     /**
@@ -147,7 +162,7 @@ class Evosus_Logger {
     }
 
     /**
-     * Get logs with filters
+     * Get logs with filters (SQL injection safe)
      */
     public function get_logs($args = []) {
         global $wpdb;
@@ -164,43 +179,53 @@ class Evosus_Logger {
 
         $args = wp_parse_args($args, $defaults);
 
+        // Sanitize limit and offset
+        $limit = absint($args['limit']);
+        $offset = absint($args['offset']);
+
+        if ($limit > 1000) {
+            $limit = 1000; // Max limit for safety
+        }
+
         $where = ['1=1'];
-        $values = [];
+        $prepare_values = [];
 
         if ($args['log_type']) {
             $where[] = 'log_type = %s';
-            $values[] = $args['log_type'];
+            $prepare_values[] = $args['log_type'];
         }
 
         if ($args['severity']) {
             $where[] = 'severity = %s';
-            $values[] = $args['severity'];
+            $prepare_values[] = $args['severity'];
         }
 
         if ($args['order_id']) {
             $where[] = 'order_id = %d';
-            $values[] = $args['order_id'];
+            $prepare_values[] = absint($args['order_id']);
         }
 
         if ($args['start_date']) {
             $where[] = 'created_at >= %s';
-            $values[] = $args['start_date'];
+            $prepare_values[] = $args['start_date'];
         }
 
         if ($args['end_date']) {
             $where[] = 'created_at <= %s';
-            $values[] = $args['end_date'];
+            $prepare_values[] = $args['end_date'];
         }
 
         $where_clause = implode(' AND ', $where);
 
-        $query = "SELECT * FROM {$this->table_name} WHERE {$where_clause} ORDER BY created_at DESC LIMIT %d OFFSET %d";
-        $values[] = $args['limit'];
-        $values[] = $args['offset'];
+        // Add limit and offset to prepared values
+        $prepare_values[] = $limit;
+        $prepare_values[] = $offset;
 
-        if (!empty($values)) {
-            $query = $wpdb->prepare($query, $values);
-        }
+        // Build and prepare query - table name is validated in constructor
+        $query = $wpdb->prepare(
+            "SELECT * FROM {$this->table_name} WHERE {$where_clause} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+            $prepare_values
+        );
 
         return $wpdb->get_results($query);
     }
@@ -225,12 +250,55 @@ class Evosus_Logger {
      * Sanitize data for logging (remove sensitive info)
      */
     private function sanitize_for_log($data) {
+        // Handle arrays and objects
         if (is_array($data) || is_object($data)) {
+            $data = $this->redact_sensitive_array($data);
             $data = json_encode($data, JSON_PRETTY_PRINT);
         }
 
-        // Remove sensitive data patterns
-        $data = preg_replace('/("ticket"|"password"|"api_key"|"token"):\s*"[^"]*"/', '$1: "[REDACTED]"', $data);
+        // Additional pattern-based redaction for string data
+        $sensitive_patterns = [
+            '/("ticket"|"password"|"api_key"|"token"|"secret"|"webhook_secret"):\s*"[^"]*"/i',
+            '/("CompanySN"|"company_sn"):\s*"[^"]*"/i',
+            '/("authorization"|"auth"):\s*"[^"]*"/i',
+            '/(ticket=)[^&\s]*/i',
+            '/(CompanySN=)[^&\s]*/i',
+        ];
+
+        foreach ($sensitive_patterns as $pattern) {
+            $data = preg_replace($pattern, '$1"[REDACTED]"', $data);
+        }
+
+        return $data;
+    }
+
+    /**
+     * Recursively redact sensitive keys from arrays
+     */
+    private function redact_sensitive_array($data) {
+        $sensitive_keys = [
+            'ticket', 'password', 'api_key', 'token', 'secret',
+            'webhook_secret', 'CompanySN', 'company_sn',
+            'authorization', 'auth', 'api_token'
+        ];
+
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                if (in_array(strtolower($key), array_map('strtolower', $sensitive_keys))) {
+                    $data[$key] = '[REDACTED]';
+                } elseif (is_array($value) || is_object($value)) {
+                    $data[$key] = $this->redact_sensitive_array($value);
+                }
+            }
+        } elseif (is_object($data)) {
+            foreach ($data as $key => $value) {
+                if (in_array(strtolower($key), array_map('strtolower', $sensitive_keys))) {
+                    $data->$key = '[REDACTED]';
+                } elseif (is_array($value) || is_object($value)) {
+                    $data->$key = $this->redact_sensitive_array($value);
+                }
+            }
+        }
 
         return $data;
     }

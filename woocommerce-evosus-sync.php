@@ -248,7 +248,13 @@ class WC_Evosus_Sync_Plugin {
      * Plugin deactivation
      */
     public function deactivate() {
-        // Cleanup if needed
+        // Clear all scheduled cron jobs
+        wp_clear_scheduled_hook('evosus_process_queue');
+        wp_clear_scheduled_hook('evosus_cleanup_logs');
+        wp_clear_scheduled_hook('evosus_retry_failed_syncs');
+        wp_clear_scheduled_hook('evosus_daily_summary');
+
+        // Flush rewrite rules for REST API endpoints
         flush_rewrite_rules();
     }
     

@@ -57,18 +57,35 @@ class Evosus_Helpers {
     }
 
     /**
-     * Encrypt sensitive data
+     * Encrypt sensitive data using AES-256-GCM (authenticated encryption)
      */
     public static function encrypt($data) {
         if (!function_exists('openssl_encrypt')) {
-            return base64_encode($data); // Fallback to base64
+            // Log error instead of using insecure fallback
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Evosus Sync: OpenSSL not available for encryption. Data not encrypted.');
+            }
+            return false;
         }
 
         $key = self::get_encryption_key();
-        $iv = openssl_random_pseudo_bytes(16);
-        $encrypted = openssl_encrypt($data, 'AES-256-CBC', $key, 0, $iv);
 
-        return base64_encode($iv . $encrypted);
+        // Derive a proper 256-bit key using hash
+        $key = hash('sha256', $key, true);
+
+        // Generate random IV (12 bytes for GCM)
+        $iv = openssl_random_pseudo_bytes(12);
+
+        // Encrypt with authenticated encryption (GCM mode)
+        $tag = '';
+        $encrypted = openssl_encrypt($data, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+        if ($encrypted === false) {
+            return false;
+        }
+
+        // Return: base64(iv + tag + ciphertext)
+        return base64_encode($iv . $tag . $encrypted);
     }
 
     /**
@@ -76,15 +93,31 @@ class Evosus_Helpers {
      */
     public static function decrypt($data) {
         if (!function_exists('openssl_decrypt')) {
-            return base64_decode($data); // Fallback from base64
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Evosus Sync: OpenSSL not available for decryption.');
+            }
+            return false;
         }
 
         $key = self::get_encryption_key();
-        $data = base64_decode($data);
-        $iv = substr($data, 0, 16);
-        $encrypted = substr($data, 16);
 
-        return openssl_decrypt($encrypted, 'AES-256-CBC', $key, 0, $iv);
+        // Derive the same 256-bit key
+        $key = hash('sha256', $key, true);
+
+        $data = base64_decode($data);
+
+        if ($data === false || strlen($data) < 28) { // 12 (iv) + 16 (tag) minimum
+            return false;
+        }
+
+        // Extract components
+        $iv = substr($data, 0, 12);
+        $tag = substr($data, 12, 16);
+        $ciphertext = substr($data, 28);
+
+        $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+        return $decrypted !== false ? $decrypted : false;
     }
 
     /**

@@ -12,7 +12,7 @@
             nonce: evosusSyncData.nonce,
 
             init: function() {
-                this.bind Events();
+                this.bindEvents();
             },
 
             bindEvents: function() {

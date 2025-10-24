@@ -33,6 +33,9 @@ class Evosus_Queue {
         $this->table_name = $wpdb->prefix . 'evosus_queue';
         $this->logger = Evosus_Logger::get_instance();
 
+        // Validate table name to prevent SQL injection
+        $this->validate_table_name();
+
         // Schedule cron job to process queue
         add_action('evosus_process_queue', [$this, 'process_queue']);
 
@@ -42,6 +45,18 @@ class Evosus_Queue {
 
         // Add custom cron interval
         add_filter('cron_schedules', [$this, 'add_cron_interval']);
+    }
+
+    /**
+     * Validate table name matches expected pattern
+     */
+    private function validate_table_name() {
+        global $wpdb;
+        $expected_table = $wpdb->prefix . 'evosus_queue';
+
+        if ($this->table_name !== $expected_table) {
+            wp_die('Invalid table name for queue');
+        }
     }
 
     /**

@@ -228,6 +228,22 @@ class Evosus_Sync_Admin {
         if (isset($_POST['save_evosus_settings'])) {
             check_admin_referer('evosus_settings_nonce');
 
+            // Security: Verify user has permission to manage options
+            if (!current_user_can('manage_options')) {
+                wp_die(
+                    __('You do not have sufficient permissions to access this page.', 'woocommerce-evosus-sync'),
+                    __('Permission Denied', 'woocommerce-evosus-sync'),
+                    ['response' => 403]
+                );
+            }
+
+            // Validate and sanitize API URL
+            $api_url = esc_url_raw($_POST['api_base_url']);
+            if (!empty($api_url) && !filter_var($api_url, FILTER_VALIDATE_URL)) {
+                echo '<div class="notice notice-error"><p>' . __('Invalid API URL format. Please enter a valid URL.', 'woocommerce-evosus-sync') . '</p></div>';
+                $api_url = '';
+            }
+
             update_option('evosus_company_sn', sanitize_text_field($_POST['company_sn']));
             update_option('evosus_ticket', sanitize_text_field($_POST['ticket']));
             update_option('evosus_auto_sync', isset($_POST['auto_sync']) ? '1' : '0');
@@ -235,7 +251,7 @@ class Evosus_Sync_Admin {
 
             // New settings
             update_option('evosus_test_mode', isset($_POST['test_mode']) ? '1' : '0');
-            update_option('evosus_api_base_url', esc_url_raw($_POST['api_base_url']));
+            update_option('evosus_api_base_url', $api_url);
             update_option('evosus_enable_notifications', isset($_POST['enable_notifications']) ? '1' : '0');
             update_option('evosus_notification_email', sanitize_email($_POST['notification_email']));
             update_option('evosus_notify_success', isset($_POST['notify_success']) ? '1' : '0');
