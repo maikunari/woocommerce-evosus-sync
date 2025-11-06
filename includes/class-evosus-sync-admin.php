@@ -28,7 +28,7 @@ class Evosus_Sync_Admin {
         add_menu_page(
             'Evosus Sync',
             'Evosus Sync',
-            'manage_woocommerce',
+            'manage_options',
             'evosus-sync',
             [$this, 'render_dashboard'],
             'dashicons-update',
@@ -435,8 +435,8 @@ Ticket: a71279ea-1362-45be-91df-d179925a0cb1
      */
     public function ajax_sync_single_order() {
         check_ajax_referer('evosus_sync_nonce', 'nonce');
-        
-        if (!current_user_can('manage_woocommerce')) {
+
+        if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Insufficient permissions']);
         }
         
@@ -460,8 +460,8 @@ Ticket: a71279ea-1362-45be-91df-d179925a0cb1
      */
     public function ajax_map_order_sku() {
         check_ajax_referer('evosus_sync_nonce', 'nonce');
-        
-        if (!current_user_can('manage_woocommerce')) {
+
+        if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Insufficient permissions']);
         }
         
@@ -483,8 +483,8 @@ Ticket: a71279ea-1362-45be-91df-d179925a0cb1
      */
     public function ajax_approve_and_sync_order() {
         check_ajax_referer('evosus_sync_nonce', 'nonce');
-        
-        if (!current_user_can('manage_woocommerce')) {
+
+        if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Insufficient permissions']);
         }
         
