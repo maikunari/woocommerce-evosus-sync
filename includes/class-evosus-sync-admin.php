@@ -148,6 +148,12 @@ class Evosus_Sync_Admin {
      * Render synced orders table
      */
     private function render_synced_orders_table($range, $title) {
+        // Check if integration is available
+        if (!$this->integration) {
+            echo '<p>' . __('Please configure your Evosus API credentials in Settings to view synced orders.', 'woocommerce-evosus-sync') . '</p>';
+            return;
+        }
+
         $orders = $this->integration->get_orders_synced_in_range($range);
         $total_revenue = array_sum(array_column($orders, 'order_total'));
         ?>
@@ -439,13 +445,17 @@ Ticket: a71279ea-1362-45be-91df-d179925a0cb1
         if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Insufficient permissions']);
         }
-        
+
+        if (!$this->integration) {
+            wp_send_json_error(['message' => 'Evosus integration not configured. Please configure API credentials first.']);
+        }
+
         $order_id = intval($_POST['order_id']);
-        
+
         if ($this->integration->is_order_synced($order_id)) {
             wp_send_json_error(['message' => 'Order already synced']);
         }
-        
+
         $result = $this->integration->sync_order_to_evosus($order_id);
         
         if ($result['success']) {
@@ -464,11 +474,15 @@ Ticket: a71279ea-1362-45be-91df-d179925a0cb1
         if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Insufficient permissions']);
         }
-        
+
+        if (!$this->integration) {
+            wp_send_json_error(['message' => 'Evosus integration not configured. Please configure API credentials first.']);
+        }
+
         $order_id = intval($_POST['order_id']);
         $item_id = intval($_POST['item_id']);
         $new_sku = sanitize_text_field($_POST['new_sku']);
-        
+
         $result = $this->integration->update_order_item_sku($order_id, $item_id, $new_sku);
         
         if ($result['success']) {
@@ -487,9 +501,13 @@ Ticket: a71279ea-1362-45be-91df-d179925a0cb1
         if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Insufficient permissions']);
         }
-        
+
+        if (!$this->integration) {
+            wp_send_json_error(['message' => 'Evosus integration not configured. Please configure API credentials first.']);
+        }
+
         $order_id = intval($_POST['order_id']);
-        
+
         $result = $this->integration->approve_order_for_sync($order_id);
         
         if ($result['success']) {

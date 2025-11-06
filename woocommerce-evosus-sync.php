@@ -79,6 +79,7 @@ class WC_Evosus_Sync_Plugin {
         require_once WC_EVOSUS_PLUGIN_DIR . 'includes/class-evosus-logger.php';
         require_once WC_EVOSUS_PLUGIN_DIR . 'includes/class-evosus-helpers.php';
         require_once WC_EVOSUS_PLUGIN_DIR . 'includes/class-evosus-sku-mapper.php';
+        require_once WC_EVOSUS_PLUGIN_DIR . 'includes/class-evosus-mock-api.php';
 
         // Main integration classes
         require_once WC_EVOSUS_PLUGIN_DIR . 'includes/class-wc-evosus-integration.php';
@@ -135,10 +136,15 @@ class WC_Evosus_Sync_Plugin {
         if (!empty($company_sn) && !empty($ticket)) {
             $this->integration = new WooCommerce_Evosus_Integration($company_sn, $ticket);
             $this->order_metabox = new Evosus_Order_Metabox($this->integration);
-            $this->admin = new Evosus_Sync_Admin($this->integration);
         } else {
             // Show setup notice
             add_action('admin_notices', [$this, 'setup_notice']);
+        }
+
+        // Always initialize admin class so settings page is accessible
+        // (even without credentials configured)
+        if (is_admin()) {
+            $this->admin = new Evosus_Sync_Admin($this->integration);
         }
     }
     
