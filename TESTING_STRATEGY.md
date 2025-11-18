@@ -696,6 +696,50 @@ wp evosus stats --range=this_week
 wp evosus stats --range=this_month
 ```
 
+### SQL Debugging Queries
+
+For advanced debugging, you can query the database directly to view the complete API request payloads:
+
+```sql
+-- View complete request payload with LineItems for a specific order
+SELECT request_data
+FROM wp_evosus_logs
+WHERE order_id = 12345
+  AND endpoint = '/method/Customer_Order_Add'
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- View all API calls made for a specific order
+SELECT id, log_type, endpoint, message, created_at
+FROM wp_evosus_logs
+WHERE order_id = 12345
+ORDER BY created_at DESC;
+
+-- View all API call logs (shows endpoint names)
+SELECT id, log_type, endpoint, message, created_at
+FROM wp_evosus_logs
+WHERE log_type = 'api_call'
+ORDER BY created_at DESC
+LIMIT 10;
+
+-- View both request and response data for debugging
+SELECT endpoint, request_data, response_data, status_code, created_at
+FROM wp_evosus_logs
+WHERE order_id = 12345
+  AND log_type = 'api_call'
+ORDER BY created_at DESC;
+```
+
+**Example Output:**
+The request_data field contains the complete JSON payload sent to Evosus, including:
+- Customer data (ID, locations)
+- Order totals and notes
+- **LineItems array** with SKU, Quantity, and Product Name for each item
+- Billing/shipping information
+- All metadata
+
+**Note:** Sensitive credentials (API tickets, CompanySN) are automatically redacted in logs for security.
+
 ---
 
 ## Common Test Scenarios

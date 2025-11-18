@@ -469,7 +469,12 @@ class WooCommerce_Evosus_Integration {
         $response = $this->api_request('POST', '/method/Customer_Order_Add', $order_data);
 
         if ($response && isset($response['response'])) {
-            $evosus_order_id = $response['response'];
+            // Extract OrderId from response (handles both array and string responses)
+            if (is_array($response['response']) && isset($response['response']['OrderId'])) {
+                $evosus_order_id = $response['response']['OrderId'];
+            } else {
+                $evosus_order_id = $response['response'];
+            }
 
             return [
                 'success' => true,
@@ -804,7 +809,29 @@ class WooCommerce_Evosus_Integration {
                 'method' => $method,
                 'body' => $body
             ]);
-            return ['response' => [], 'test_mode' => true];
+
+            // Use mock API for realistic responses
+            if (class_exists('Evosus_Mock_API')) {
+                $mock_response = Evosus_Mock_API::get_mock_response($endpoint, $body);
+                $this->logger->log_info('Mock API response returned', $mock_response);
+
+                // Log the API call for debugging (same as real API calls)
+                $this->logger->log_api_call(
+                    $endpoint,
+                    $method,
+                    $body,
+                    $mock_response,
+                    200, // Mock status code
+                    0    // No execution time in test mode
+                );
+
+                return $mock_response;
+            }
+
+            // Fallback to empty response
+            $empty_response = ['response' => [], 'test_mode' => true];
+            $this->logger->log_api_call($endpoint, $method, $body, $empty_response, 200, 0);
+            return $empty_response;
         }
 
         $url = $this->base_url . $endpoint;

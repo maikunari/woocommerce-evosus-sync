@@ -1,0 +1,131 @@
+# WooCommerce Evosus Sync Plugin - Project Rules
+
+## Startup Behavior
+
+**IMPORTANT:** When this project first loads in Claude Code:
+
+1. **Check for ready tasks:** `npx tsx scripts/task-manager.ts ready`
+2. **Display available tasks** with their dependencies and status
+3. **Say:** "I found X tasks ready to work on. Which would you like me to start?"
+4. **Wait for user** to specify which task to begin
+
+**Do NOT wait to be asked** - proactively check and display ready tasks on startup.
+
+## Task Management v2.0
+
+### Quick Commands
+
+```bash
+# Check ready tasks (no blocking dependencies)
+npx tsx scripts/task-manager.ts ready
+
+# List all worker tasks
+npx tsx scripts/task-manager.ts worker
+
+# Start a task
+npx tsx scripts/task-manager.ts start <phase-id> <subtask-id>
+
+# Track file modifications
+npx tsx scripts/task-manager.ts file <phase-id> <subtask-id> <file-path>
+
+# Complete a task
+npx tsx scripts/task-manager.ts complete <phase-id> <subtask-id> "completion note"
+
+# Block a task
+npx tsx scripts/task-manager.ts block <phase-id> <subtask-id> "reason"
+
+# Show task details
+npx tsx scripts/task-manager.ts show <phase-id> <subtask-id>
+```
+
+### Worker Task Workflow
+
+**1. Check Ready Tasks**
+```bash
+npx tsx scripts/task-manager.ts ready
+```
+
+**2. Start Task (Automatic State Tracking)**
+```bash
+npx tsx scripts/task-manager.ts start phase-1 1
+# ✅ Checks dependencies
+# ✅ Updates status to in_progress
+# ✅ Records started_at timestamp
+```
+
+**3. Track Files During Work**
+```bash
+# After each PHP file modification
+npx tsx scripts/task-manager.ts file phase-1 1 includes/class-api-handler.php
+npx tsx scripts/task-manager.ts file phase-1 1 includes/class-sync-engine.php
+```
+
+**4. Complete Task**
+```bash
+npx tsx scripts/task-manager.ts complete phase-1 1 "Implemented feature X with WP-CLI tests"
+# ✅ Updates status to complete
+# ✅ Records completed_at timestamp
+# ✅ Adds completion comment
+```
+
+**5. Commit Work**
+```bash
+git add .
+git commit -m "feat: Task description [phase-1/1]
+
+Detailed description of changes.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+### If Blocked
+
+```bash
+npx tsx scripts/task-manager.ts block phase-1 2 "Need live Evosus credentials"
+# Then escalate to human
+```
+
+## Project Context
+
+- **Purpose:** WordPress/WooCommerce integration with Evosus ERP system
+- **Type:** WordPress plugin (not Next.js/React)
+- **Version:** 2.0.0
+- **Status:** 95% complete - ready for testing and deployment
+- **Challenge:** Only live Evosus instance available (no test environment)
+
+## Key Files
+
+- [TOMORROW-PLAN.md](TOMORROW-PLAN.md) - Execution plan
+- [CURRENT_STATUS.md](CURRENT_STATUS.md) - What's done, what remains
+- [TESTING_STRATEGY.md](TESTING_STRATEGY.md) - Complete testing guide
+- [woocommerce-evosus-sync.php](woocommerce-evosus-sync.php) - Main plugin file
+- [tasks.json](tasks.json) - Task database
+
+## Task Completion Protocol
+
+When completing tasks:
+1. ✅ **Track files** as you modify them
+2. ✅ **Test** the functionality (WP-CLI or Mock API)
+3. ✅ **Complete task** with hook command (auto-updates tasks.json)
+4. ✅ **Commit** your work with task reference in message
+5. ✅ **No manual JSON editing** - use hooks for all updates
+
+## Important Notes
+
+- **WordPress plugin** - PHP code, not TypeScript/JavaScript
+- **Test mode:** `wp option update evosus_test_mode 1`
+- **WP-CLI commands** documented in TOMORROW-PLAN.md
+- **Only live Evosus** - test carefully
+- **Always use hooks** - never manually edit tasks.json
+- **Dependencies matter** - can't start a task if dependencies incomplete
+- **File tracking** - builds audit trail automatically
+- **Git commits** - reference task ID: `[phase-id/subtask-id]`
+
+## Philosophy
+
+- Dharmic approach: Right tool for right task
+- Safety first: Test mode → Mock API → Single live test
+- WordPress/PHP best practices
+- Comprehensive logging for debugging
