@@ -1,3 +1,210 @@
 {
-  "phases": []
+  "phases": [
+    {
+      "id": "wordpress-live-testing",
+      "title": "WordPress Plugin Live Testing - Evosus API",
+      "status": "active",
+      "subtasks": [
+        {
+          "id": "configure-plugin",
+          "title": "Configure WordPress Plugin with Live API Credentials",
+          "status": "pending",
+          "description": "Set up the WooCommerce Evosus Sync plugin with live API credentials",
+          "instructions": [
+            "1. Log into WordPress admin panel",
+            "2. Navigate to: WooCommerce → Settings → Evosus Sync tab",
+            "3. Enter the following credentials:",
+            "   - CompanySN: 20060511100251-006",
+            "   - Ticket: 9b6547d3-f45a-482f-b264-2a616a6ec0fb",
+            "   - API Base URL: https://cloud3.evosus.com/api (should be default)",
+            "4. Enable 'Test Mode' checkbox (for safety)",
+            "5. Click 'Save Changes'",
+            "6. Click 'Test Connection' button",
+            "7. Verify you see: ✓ Connection successful message",
+            "",
+            "✅ Success Criteria: Green success message confirming API connection works"
+          ]
+        },
+        {
+          "id": "create-test-product",
+          "title": "Create Test Product with Known SKU",
+          "status": "pending",
+          "description": "Create a WooCommerce product using a SKU we know exists in Evosus",
+          "instructions": [
+            "1. Go to: Products → Add New",
+            "2. Enter product details:",
+            "   - Product name: 'TEST - Enviro Combustion Blower'",
+            "   - SKU: EF-161-A (this exists in Evosus with 18 units available)",
+            "   - Regular price: $228.80 (matches Evosus retail)",
+            "   - Stock status: In stock",
+            "3. Click 'Publish'",
+            "4. Note the Product ID for reference",
+            "",
+            "✅ Success Criteria: Product created successfully with SKU EF-161-A"
+          ]
+        },
+        {
+          "id": "create-test-order",
+          "title": "Create Test Order in WooCommerce",
+          "status": "pending",
+          "description": "Create a manual test order with the test product",
+          "instructions": [
+            "1. Go to: WooCommerce → Orders → Add New",
+            "2. Add customer information:",
+            "   - Use existing customer OR create test customer",
+            "   - Customer email: mike@friendlyfires.ca (exists in Evosus as CustomerID 6687)",
+            "3. Add line items:",
+            "   - Search for product: 'TEST - Enviro Combustion Blower'",
+            "   - Quantity: 1",
+            "4. Fill in billing address (can use existing from Evosus):",
+            "   - First Name: Mike",
+            "   - Last Name: Sewell",
+            "   - Address: 1316 Rudlin St",
+            "   - City: Victoria",
+            "   - State: BC",
+            "   - Postcode: V8V 3S1",
+            "   - Country: CA",
+            "5. Set order status to: Processing (or whatever triggers sync)",
+            "6. Click 'Create'",
+            "7. Note the WooCommerce Order ID",
+            "",
+            "✅ Success Criteria: Order created with order number displayed"
+          ]
+        },
+        {
+          "id": "verify-sku-validation",
+          "title": "Verify SKU Validation in Order Metabox",
+          "status": "pending",
+          "description": "Check that the Evosus metabox shows SKU validation results",
+          "instructions": [
+            "1. Open the test order you just created",
+            "2. Scroll down to find 'Evosus Order Sync' metabox",
+            "3. Look for SKU validation section - should show:",
+            "   - ✓ SKU EF-161-A: Valid",
+            "   - Quantity Available: 18.00",
+            "   - Discontinued: No",
+            "4. Verify there are NO red error messages about invalid SKUs",
+            "",
+            "⚠️ If you see errors:",
+            "- Check API credentials are saved correctly",
+            "- Verify Test Mode is enabled",
+            "- Check browser console for JavaScript errors",
+            "",
+            "✅ Success Criteria: Green checkmark showing SKU is valid in Evosus"
+          ]
+        },
+        {
+          "id": "dry-run-sync-test-mode",
+          "title": "Perform Dry Run Sync (Test Mode)",
+          "status": "pending",
+          "description": "Test the sync process WITHOUT actually writing to Evosus",
+          "instructions": [
+            "1. In the order page, find 'Evosus Order Sync' metabox",
+            "2. Verify 'Test Mode' is ENABLED (checkbox checked)",
+            "3. Click 'Sync to Evosus' button",
+            "4. Wait for response (may take 5-10 seconds)",
+            "5. Check for success/error message in the metabox",
+            "6. Review what WOULD have been sent:",
+            "   - Customer ID lookup",
+            "   - Order line items",
+            "   - Billing/shipping addresses",
+            "",
+            "Expected Result (Test Mode):",
+            "- Message: 'Test mode - order would be synced with: [details]'",
+            "- NO actual order created in Evosus",
+            "- Order meta shows sync was simulated",
+            "",
+            "⚠️ If you see errors:",
+            "- Note the exact error message",
+            "- Check WordPress debug.log: wp-content/debug.log",
+            "- Check plugin logs: WooCommerce → Status → Logs → evosus-sync",
+            "",
+            "✅ Success Criteria: Test mode shows what would be synced, no errors"
+          ]
+        },
+        {
+          "id": "live-sync-single-order",
+          "title": "LIVE SYNC - Sync ONE Order to Evosus (CAUTION)",
+          "status": "pending",
+          "description": "Perform actual live sync to create order in Evosus production system",
+          "instructions": [
+            "⚠️ CAUTION: This will create a REAL order in Evosus production!",
+            "",
+            "Pre-flight Checklist:",
+            "- [ ] Test mode sync completed successfully",
+            "- [ ] SKU validation passed (EF-161-A is valid)",
+            "- [ ] Customer email exists in Evosus (mike@friendlyfires.ca)",
+            "- [ ] You're ready to have a real order in Evosus",
+            "",
+            "Steps:",
+            "1. In the order page, find 'Evosus Order Sync' metabox",
+            "2. UNCHECK 'Test Mode' checkbox",
+            "3. Click 'Save' to save the disabled test mode",
+            "4. Click 'Sync to Evosus' button",
+            "5. Wait for response (may take 10-15 seconds)",
+            "6. Check for success message",
+            "7. Note the Evosus Order ID returned (if successful)",
+            "",
+            "Expected Success Response:",
+            "- Message: '✓ Order synced successfully to Evosus'",
+            "- Evosus Order ID: [number]",
+            "- Order meta updated with sync timestamp",
+            "",
+            "⚠️ If sync fails:",
+            "- IMMEDIATELY re-enable Test Mode",
+            "- Document exact error message",
+            "- Check API logs for details",
+            "- Do NOT retry without investigating",
+            "",
+            "✅ Success Criteria: Order created in Evosus, Order ID returned"
+          ]
+        },
+        {
+          "id": "verify-in-evosus-dashboard",
+          "title": "Verify Order in Evosus Web Dashboard",
+          "status": "pending",
+          "description": "Confirm the order appears correctly in Evosus",
+          "instructions": [
+            "1. Log into Evosus web dashboard",
+            "2. Navigate to: Orders or Sales section",
+            "3. Search for order by:",
+            "   - Evosus Order ID (from sync response)",
+            "   - OR PO Number (should match WooCommerce Order #)",
+            "   - OR Customer name: Mike Sewell",
+            "4. Open the order and verify:",
+            "   - Customer: Mike Sewell (CustomerID: 6687)",
+            "   - Line item: EF-161-A × 1",
+            "   - Item description: Enviro Combustion Blower w/ Gasket",
+            "   - Order total: $228.80 (or your WC order total)",
+            "   - Order note: 'Order from WooCommerce #[number]'",
+            "   - Internal note: Contains WooCommerce Order ID and timestamp",
+            "5. Take screenshot for documentation",
+            "",
+            "✅ Success Criteria: Order exists in Evosus with correct details"
+          ]
+        },
+        {
+          "id": "document-results",
+          "title": "Document Test Results",
+          "status": "pending",
+          "description": "Record test outcomes and any issues discovered",
+          "instructions": [
+            "1. Create test report: TEST-RESULTS-[DATE].md",
+            "2. Document:",
+            "   - Test date/time",
+            "   - WordPress order ID",
+            "   - Evosus order ID",
+            "   - Success/failure of each step",
+            "   - Any errors encountered",
+            "   - Screenshots of key steps",
+            "3. Update API-TESTING-RESULTS.md with WordPress testing section",
+            "4. Update CURRENT_STATUS.md with new plugin status",
+            "5. Commit all changes to git",
+            "",
+            "✅ Success Criteria: Complete documentation of test results"
+          ]
+        }
+      ]
+    }
+  ]
 }
