@@ -381,10 +381,11 @@ class WooCommerce_Evosus_Integration {
                     $first_address_id = $address['CustomerLocationID'];
                 }
 
-                if ($address['IsDefaultBillTo'] === '1' || $address['IsDefaultBillTo'] === true) {
+                // Evosus API returns 'Yes' or 'No' as strings (not '1'/true)
+                if ($address['IsDefaultBillTo'] === 'Yes' || $address['IsDefaultBillTo'] === '1' || $address['IsDefaultBillTo'] === true) {
                     $bill_to_location_id = $address['CustomerLocationID'];
                 }
-                if ($address['IsDefaultShipTo'] === '1' || $address['IsDefaultShipTo'] === true) {
+                if ($address['IsDefaultShipTo'] === 'Yes' || $address['IsDefaultShipTo'] === '1' || $address['IsDefaultShipTo'] === true) {
                     $ship_to_location_id = $address['CustomerLocationID'];
                 }
             }
