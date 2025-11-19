@@ -291,6 +291,18 @@ class WooCommerce_Evosus_Integration {
 
             $this->logger->log_info("Existing customer found: {$search_result['customer_id']}");
 
+            // Verify we have location IDs
+            if (empty($addresses['bill_to_location_id']) || empty($addresses['ship_to_location_id'])) {
+                $this->logger->log_error("Customer {$search_result['customer_id']} has no addresses in Evosus", $addresses);
+                return [
+                    'success' => false,
+                    'message' => sprintf(
+                        __('Customer exists in Evosus (ID: %s) but has no addresses configured. Please add an address in Evosus first.', 'woocommerce-evosus-sync'),
+                        $search_result['customer_id']
+                    )
+                ];
+            }
+
             return [
                 'success' => true,
                 'customer_id' => $search_result['customer_id'],
@@ -359,15 +371,32 @@ class WooCommerce_Evosus_Integration {
 
         $bill_to_location_id = null;
         $ship_to_location_id = null;
+        $first_address_id = null;
 
-        if ($response && isset($response['response'])) {
+        if ($response && isset($response['response']) && !empty($response['response'])) {
+            // First pass: look for default addresses
             foreach ($response['response'] as $address) {
+                // Store first address as fallback
+                if ($first_address_id === null) {
+                    $first_address_id = $address['CustomerLocationID'];
+                }
+
                 if ($address['IsDefaultBillTo'] === '1' || $address['IsDefaultBillTo'] === true) {
                     $bill_to_location_id = $address['CustomerLocationID'];
                 }
                 if ($address['IsDefaultShipTo'] === '1' || $address['IsDefaultShipTo'] === true) {
                     $ship_to_location_id = $address['CustomerLocationID'];
                 }
+            }
+
+            // If no default addresses found, use the first address for both
+            if ($bill_to_location_id === null && $first_address_id !== null) {
+                $bill_to_location_id = $first_address_id;
+                $this->logger->log_info("No default BillTo address found for customer {$customer_id}, using first address: {$first_address_id}");
+            }
+            if ($ship_to_location_id === null && $first_address_id !== null) {
+                $ship_to_location_id = $first_address_id;
+                $this->logger->log_info("No default ShipTo address found for customer {$customer_id}, using first address: {$first_address_id}");
             }
         }
 
