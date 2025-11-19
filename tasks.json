@@ -7,7 +7,7 @@
       "subtasks": [
         {
           "id": "configure-plugin",
-          "title": "Configure WordPress Plugin with Live API Credentials",
+          "name": "Configure WordPress Plugin with Live API Credentials",
           "status": "pending",
           "description": "Set up the WooCommerce Evosus Sync plugin with live API credentials",
           "instructions": [
@@ -27,7 +27,7 @@
         },
         {
           "id": "create-test-product",
-          "title": "Create Test Product with Known SKU",
+          "name": "Create Test Product with Known SKU",
           "status": "pending",
           "description": "Create a WooCommerce product using a SKU we know exists in Evosus",
           "instructions": [
@@ -45,7 +45,7 @@
         },
         {
           "id": "create-test-order",
-          "title": "Create Test Order in WooCommerce",
+          "name": "Create Test Order in WooCommerce",
           "status": "pending",
           "description": "Create a manual test order with the test product",
           "instructions": [
@@ -73,7 +73,7 @@
         },
         {
           "id": "verify-sku-validation",
-          "title": "Verify SKU Validation in Order Metabox",
+          "name": "Verify SKU Validation in Order Metabox",
           "status": "pending",
           "description": "Check that the Evosus metabox shows SKU validation results",
           "instructions": [
@@ -95,7 +95,7 @@
         },
         {
           "id": "dry-run-sync-test-mode",
-          "title": "Perform Dry Run Sync (Test Mode)",
+          "name": "Perform Dry Run Sync (Test Mode)",
           "status": "pending",
           "description": "Test the sync process WITHOUT actually writing to Evosus",
           "instructions": [
@@ -124,7 +124,7 @@
         },
         {
           "id": "live-sync-single-order",
-          "title": "LIVE SYNC - Sync ONE Order to Evosus (CAUTION)",
+          "name": "LIVE SYNC - Sync ONE Order to Evosus (CAUTION)",
           "status": "pending",
           "description": "Perform actual live sync to create order in Evosus production system",
           "instructions": [
@@ -161,7 +161,7 @@
         },
         {
           "id": "verify-in-evosus-dashboard",
-          "title": "Verify Order in Evosus Web Dashboard",
+          "name": "Verify Order in Evosus Web Dashboard",
           "status": "pending",
           "description": "Confirm the order appears correctly in Evosus",
           "instructions": [
@@ -185,7 +185,7 @@
         },
         {
           "id": "document-results",
-          "title": "Document Test Results",
+          "name": "Document Test Results",
           "status": "pending",
           "description": "Record test outcomes and any issues discovered",
           "instructions": [
