@@ -676,9 +676,20 @@ class WooCommerce_Evosus_Integration {
         $args = [
             'limit' => -1,
             'meta_query' => [
+                'relation' => 'AND',
                 [
                     'key' => '_evosus_synced',
                     'value' => 'yes'
+                ],
+                [
+                    'key' => '_evosus_sync_date',
+                    'value' => '',
+                    'compare' => '!='
+                ],
+                [
+                    'key' => '_evosus_order_id',
+                    'value' => '',
+                    'compare' => '!='
                 ]
             ]
         ];
