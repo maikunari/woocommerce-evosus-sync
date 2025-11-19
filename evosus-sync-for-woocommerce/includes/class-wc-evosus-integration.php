@@ -683,13 +683,11 @@ class WooCommerce_Evosus_Integration {
                 ],
                 [
                     'key' => '_evosus_sync_date',
-                    'value' => '',
-                    'compare' => '!='
+                    'compare' => 'EXISTS'
                 ],
                 [
                     'key' => '_evosus_order_id',
-                    'value' => '',
-                    'compare' => '!='
+                    'compare' => 'EXISTS'
                 ]
             ]
         ];
@@ -711,11 +709,20 @@ class WooCommerce_Evosus_Integration {
 
         $results = [];
         foreach ($orders as $order) {
+            // Get meta values
+            $evosus_order_id = Evosus_Helpers::get_order_meta($order->get_id(), '_evosus_order_id', true);
+            $sync_date = Evosus_Helpers::get_order_meta($order->get_id(), '_evosus_sync_date', true);
+
+            // Skip orders that don't have valid sync data
+            if (empty($evosus_order_id) || empty($sync_date) || $sync_date == 0) {
+                continue;
+            }
+
             $results[] = [
                 'wc_order_id' => $order->get_id(),
                 'wc_order_number' => $order->get_order_number(),
-                'evosus_order_id' => Evosus_Helpers::get_order_meta($order->get_id(), '_evosus_order_id', true),
-                'sync_date' => Evosus_Helpers::get_order_meta($order->get_id(), '_evosus_sync_date', true),
+                'evosus_order_id' => $evosus_order_id,
+                'sync_date' => $sync_date,
                 'customer_name' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
                 'order_total' => $order->get_total(),
                 'order_date' => $order->get_date_created()->format('Y-m-d H:i:s')

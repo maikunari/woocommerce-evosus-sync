@@ -103,14 +103,17 @@ class WC_Evosus_Sync_Plugin {
     private function init_hooks() {
         add_action('plugins_loaded', [$this, 'init']);
         add_action('admin_init', [$this, 'check_requirements']);
-        
+
         // Plugin activation/deactivation
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
-        
+
+        // Set default sync status for new orders
+        add_action('woocommerce_new_order', [$this, 'set_default_sync_status'], 10, 1);
+
         // Auto-sync on order status change (if enabled)
         add_action('woocommerce_order_status_changed', [$this, 'auto_sync_order'], 10, 4);
-        
+
         // Add settings link to plugins page
         add_filter('plugin_action_links_' . WC_EVOSUS_PLUGIN_BASENAME, [$this, 'add_action_links']);
     }
@@ -263,7 +266,18 @@ class WC_Evosus_Sync_Plugin {
         // Flush rewrite rules for REST API endpoints
         flush_rewrite_rules();
     }
-    
+
+    /**
+     * Set default sync status for new orders
+     * This ensures all orders have _evosus_synced = 'no' by default
+     */
+    public function set_default_sync_status($order_id) {
+        // Only set if not already set (avoid overwriting existing value)
+        if (!metadata_exists('post', $order_id, '_evosus_synced')) {
+            update_post_meta($order_id, '_evosus_synced', 'no');
+        }
+    }
+
     /**
      * Auto-sync order when status changes
      */
