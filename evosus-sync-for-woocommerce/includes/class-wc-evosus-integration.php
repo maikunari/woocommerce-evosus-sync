@@ -469,7 +469,8 @@ class WooCommerce_Evosus_Integration {
             'PhoneNumber_Mobile1' => Evosus_Helpers::format_phone_number($billing['phone']),
             'EmailAddress1' => $billing['email'],
             'DataConversion_LegacySystemID' => 'WC_' . $order->get_customer_id(),
-            'CustomerNoteText' => sprintf(__('Customer created from WooCommerce Order #%s', 'woocommerce-evosus-sync'), $order->get_order_number())
+            'CustomerNoteText' => sprintf(__('Customer created from WooCommerce Order #%s', 'woocommerce-evosus-sync'), $order->get_order_number()),
+            'CheckCustomerDuplicates' => 'FALSE' // Prevent Evosus from updating existing customers
         ];
     }
 
