@@ -282,14 +282,30 @@ class WooCommerce_Evosus_Integration {
      * Check if customer exists, if not create them
      */
     private function find_or_create_customer($customer_data) {
-        // Search for existing customer by email
+        // Try multiple search strategies to find existing customer
+        // Strategy 1: Search by email (most reliable)
         $search_result = $this->search_customer_by_email($customer_data['EmailAddress1']);
+
+        // Strategy 2: If no email match, try phone number
+        if (!$search_result['found'] && !empty($customer_data['PhoneNumber_Mobile1'])) {
+            $this->logger->log_info("No email match, trying phone number search");
+            $search_result = $this->search_customer_by_phone($customer_data['PhoneNumber_Mobile1']);
+        }
+
+        // Strategy 3: If still no match, try name + address (more fuzzy)
+        if (!$search_result['found'] && !empty($customer_data['Name_First']) && !empty($customer_data['BillTo_Address1'])) {
+            $this->logger->log_info("No email/phone match, trying name+address search");
+            $search_result = $this->search_customer_by_name_and_address(
+                $customer_data['Name_First'] . ' ' . $customer_data['Name_Last'],
+                $customer_data['BillTo_Address1']
+            );
+        }
 
         if ($search_result['found']) {
             // Customer exists - get their location IDs
             $addresses = $this->get_customer_addresses($search_result['customer_id']);
 
-            $this->logger->log_info("Existing customer found: {$search_result['customer_id']}");
+            $this->logger->log_info("Existing customer found via {$search_result['match_type']}: {$search_result['customer_id']}");
 
             // Verify we have location IDs
             if (empty($addresses['bill_to_location_id']) || empty($addresses['ship_to_location_id'])) {
@@ -308,11 +324,13 @@ class WooCommerce_Evosus_Integration {
                 'customer_id' => $search_result['customer_id'],
                 'bill_to_location_id' => $addresses['bill_to_location_id'],
                 'ship_to_location_id' => $addresses['ship_to_location_id'],
-                'is_new' => false
+                'is_new' => false,
+                'match_type' => $search_result['match_type']
             ];
         }
 
-        // Customer doesn't exist - create new one
+        // No match found - create new customer
+        $this->logger->log_info("No existing customer found, creating new customer");
         return $this->create_customer($customer_data);
     }
 
@@ -320,6 +338,10 @@ class WooCommerce_Evosus_Integration {
      * Search for customer by email address
      */
     public function search_customer_by_email($email) {
+        if (empty($email)) {
+            return ['found' => false];
+        }
+
         $response = $this->api_request('POST', '/method/Customer_Search', [
             'args' => [
                 'EmailAddress_List' => $email
@@ -329,7 +351,8 @@ class WooCommerce_Evosus_Integration {
         if ($response && isset($response['response']) && count($response['response']) > 0) {
             return [
                 'found' => true,
-                'customer_id' => $response['response'][0]['CustomerID']
+                'customer_id' => $response['response'][0]['CustomerID'],
+                'match_type' => 'email'
             ];
         }
 
@@ -337,9 +360,13 @@ class WooCommerce_Evosus_Integration {
     }
 
     /**
-     * Search for customer by phone number (alternative method)
+     * Search for customer by phone number
      */
     private function search_customer_by_phone($phone) {
+        if (empty($phone)) {
+            return ['found' => false];
+        }
+
         // Remove all non-numeric characters
         $clean_phone = Evosus_Helpers::format_phone_number($phone);
 
@@ -352,7 +379,37 @@ class WooCommerce_Evosus_Integration {
         if ($response && isset($response['response']) && count($response['response']) > 0) {
             return [
                 'found' => true,
-                'customer_id' => $response['response'][0]['CustomerID']
+                'customer_id' => $response['response'][0]['CustomerID'],
+                'match_type' => 'phone'
+            ];
+        }
+
+        return ['found' => false];
+    }
+
+    /**
+     * Search for customer by name and address (fuzzy matching)
+     */
+    private function search_customer_by_name_and_address($name, $address) {
+        if (empty($name) || empty($address)) {
+            return ['found' => false];
+        }
+
+        $response = $this->api_request('POST', '/method/Customer_Search', [
+            'args' => [
+                'Name' => $name,
+                'Address1' => $address
+            ]
+        ]);
+
+        if ($response && isset($response['response']) && count($response['response']) > 0) {
+            // Name+address can be fuzzy, so we log when this happens
+            $this->logger->log_info("Customer found via name+address (fuzzy match): " . json_encode($response['response'][0]));
+
+            return [
+                'found' => true,
+                'customer_id' => $response['response'][0]['CustomerID'],
+                'match_type' => 'name+address'
             ];
         }
 
@@ -483,6 +540,9 @@ class WooCommerce_Evosus_Integration {
         // Use WooCommerce order number in the PO Number field
         $wc_order_number = $order->get_order_number();
 
+        // Get tax information from WooCommerce order
+        $sales_tax_pk = $this->get_evosus_tax_code($order);
+
         $order_data = [
             'args' => [
                 'Customer_ID' => (string)$customer_id,
@@ -496,6 +556,11 @@ class WooCommerce_Evosus_Integration {
                 'LineItems' => $line_items
             ]
         ];
+
+        // Add SalesTax_PK if we have a mapped tax code
+        if (!empty($sales_tax_pk)) {
+            $order_data['args']['SalesTax_PK'] = (string)$sales_tax_pk;
+        }
 
         $response = $this->api_request('POST', '/method/Customer_Order_Add', $order_data);
 
@@ -546,14 +611,57 @@ class WooCommerce_Evosus_Integration {
                 $item_code = !empty($mapped_sku) ? $mapped_sku : ($wc_sku ?: 'WC_' . $product->get_id());
             }
 
+            // Calculate unit price from WooCommerce (price customer actually paid)
+            // This handles discounts, sale prices, etc.
+            $quantity = $item->get_quantity();
+            $line_total = $item->get_total(); // Subtotal after discounts, excluding tax
+            $unit_price = $quantity > 0 ? ($line_total / $quantity) : 0;
+
             $line_items[] = [
                 'ItemCode' => $item_code,
-                'Quantity' => $item->get_quantity(),
+                'Quantity' => $quantity,
+                'UnitPrice' => round($unit_price, 2), // WooCommerce price (may differ from Evosus)
                 'Comment' => $item->get_name()
             ];
         }
 
         return $line_items;
+    }
+
+    /**
+     * Get Evosus tax code (SalesTax_PK) based on WooCommerce tax rate
+     */
+    private function get_evosus_tax_code($order) {
+        // Get total tax rate from WooCommerce order
+        $total_tax = $order->get_total_tax();
+        $subtotal = $order->get_subtotal();
+
+        // Calculate tax rate as decimal (e.g., 0.13 for 13%)
+        $wc_tax_rate = ($subtotal > 0) ? ($total_tax / $subtotal) : 0;
+
+        // Map WooCommerce tax rate to Evosus SalesTax_PK
+        // These mappings are based on common Canadian tax rates
+        // Adjust these values based on your Evosus tax code configuration
+        $tax_rate_map = [
+            0.00 => 1,   // Exempt
+            0.05 => 2,   // GST (5%)
+            0.13 => 7,   // HST (13%) - Ontario
+            0.14 => 11,  // HST (14%) - Nova Scotia
+            0.15 => 8,   // HST (15%) - Atlantic provinces
+        ];
+
+        // Find closest matching tax rate (within 0.5% tolerance)
+        $tolerance = 0.005;
+        foreach ($tax_rate_map as $rate => $tax_pk) {
+            if (abs($wc_tax_rate - $rate) <= $tolerance) {
+                $this->logger->log_info("Matched WooCommerce tax rate {$wc_tax_rate} to Evosus SalesTax_PK {$tax_pk}");
+                return $tax_pk;
+            }
+        }
+
+        // If no match found, log warning and return null (Evosus will use customer's default)
+        $this->logger->log_warning("No Evosus tax code match for WooCommerce tax rate: {$wc_tax_rate}. Using customer default.");
+        return null;
     }
 
     /**
