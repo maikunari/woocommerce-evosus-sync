@@ -646,12 +646,32 @@ class WooCommerce_Evosus_Integration {
      * Get Evosus tax code (SalesTax_PK) based on WooCommerce tax rate
      */
     private function get_evosus_tax_code($order) {
-        // Get total tax rate from WooCommerce order
-        $total_tax = $order->get_total_tax();
-        $subtotal = $order->get_subtotal();
+        // Get tax items from order to extract actual rate
+        $wc_tax_rate = 0;
+        $tax_rate_label = '';
 
-        // Calculate tax rate as decimal (e.g., 0.13 for 13%)
-        $wc_tax_rate = ($subtotal > 0) ? ($total_tax / $subtotal) : 0;
+        $taxes = $order->get_taxes();
+        if (!empty($taxes)) {
+            foreach ($taxes as $tax) {
+                $rate_id = $tax->get_rate_id();
+                if ($rate_id) {
+                    // Get tax rate percentage
+                    $tax_percent = WC_Tax::get_rate_percent($rate_id);
+                    $tax_rate_label = $tax->get_label();
+
+                    // Extract numeric percentage (e.g., "5%" -> 0.05)
+                    $wc_tax_rate = floatval(str_replace('%', '', $tax_percent)) / 100;
+                    break; // Use first tax rate
+                }
+            }
+        }
+
+        // Fallback: Calculate from totals if we couldn't get it from tax items
+        if ($wc_tax_rate == 0) {
+            $total_tax = $order->get_total_tax();
+            $subtotal = $order->get_subtotal();
+            $wc_tax_rate = ($subtotal > 0) ? ($total_tax / $subtotal) : 0;
+        }
 
         // Map WooCommerce tax rate to Evosus SalesTax_PK
         // Based on your Evosus tax configuration:
@@ -673,14 +693,24 @@ class WooCommerce_Evosus_Integration {
         foreach ($tax_rate_map as $rate => $tax_pk) {
             if (abs($wc_tax_rate - $rate) <= $tolerance) {
                 $rate_percent = round($rate * 100, 2);
-                $this->logger->log_info("Matched WooCommerce tax rate {$rate_percent}% to Evosus SalesTax_PK {$tax_pk}");
+                $log_msg = "Matched WooCommerce tax rate {$rate_percent}%";
+                if (!empty($tax_rate_label)) {
+                    $log_msg .= " ({$tax_rate_label})";
+                }
+                $log_msg .= " to Evosus SalesTax_PK {$tax_pk}";
+                $this->logger->log_info($log_msg);
                 return $tax_pk;
             }
         }
 
         // If no match found, log warning and return null (Evosus will use customer's default)
         $rate_percent = round($wc_tax_rate * 100, 2);
-        $this->logger->log_warning("No Evosus tax code match for WooCommerce tax rate: {$rate_percent}%. Using customer default.");
+        $log_msg = "No Evosus tax code match for WooCommerce tax rate: {$rate_percent}%";
+        if (!empty($tax_rate_label)) {
+            $log_msg .= " ({$tax_rate_label})";
+        }
+        $log_msg .= ". Using customer default.";
+        $this->logger->log_warning($log_msg);
         return null;
     }
 
