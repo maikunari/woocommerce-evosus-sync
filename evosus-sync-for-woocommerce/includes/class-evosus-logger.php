@@ -19,6 +19,8 @@ class Evosus_Logger {
         return self::$instance;
     }
 
+    private $wc_logger;
+
     /**
      * Constructor
      */
@@ -28,6 +30,11 @@ class Evosus_Logger {
 
         // Validate table name to prevent SQL injection
         $this->validate_table_name();
+
+        // Initialize WooCommerce logger for file logging
+        if (function_exists('wc_get_logger')) {
+            $this->wc_logger = wc_get_logger();
+        }
     }
 
     /**
@@ -72,6 +79,18 @@ class Evosus_Logger {
      */
     public function log_error($message, $context = [], $order_id = null) {
         global $wpdb;
+
+        // Write to WooCommerce log file
+        if ($this->wc_logger) {
+            $log_message = $message;
+            if ($order_id) {
+                $log_message = "[Order #{$order_id}] " . $log_message;
+            }
+            if (!empty($context)) {
+                $log_message .= ' | Context: ' . json_encode($context);
+            }
+            $this->wc_logger->error($log_message, ['source' => 'evosus-sync']);
+        }
 
         $wpdb->insert(
             $this->table_name,
@@ -123,6 +142,18 @@ class Evosus_Logger {
     public function log_warning($message, $context = [], $order_id = null) {
         global $wpdb;
 
+        // Write to WooCommerce log file
+        if ($this->wc_logger) {
+            $log_message = $message;
+            if ($order_id) {
+                $log_message = "[Order #{$order_id}] " . $log_message;
+            }
+            if (!empty($context)) {
+                $log_message .= ' | Context: ' . json_encode($context);
+            }
+            $this->wc_logger->warning($log_message, ['source' => 'evosus-sync']);
+        }
+
         $wpdb->insert(
             $this->table_name,
             [
@@ -144,6 +175,18 @@ class Evosus_Logger {
      */
     public function log_info($message, $context = [], $order_id = null) {
         global $wpdb;
+
+        // Write to WooCommerce log file
+        if ($this->wc_logger) {
+            $log_message = $message;
+            if ($order_id) {
+                $log_message = "[Order #{$order_id}] " . $log_message;
+            }
+            if (!empty($context)) {
+                $log_message .= ' | Context: ' . json_encode($context);
+            }
+            $this->wc_logger->info($log_message, ['source' => 'evosus-sync']);
+        }
 
         $wpdb->insert(
             $this->table_name,
