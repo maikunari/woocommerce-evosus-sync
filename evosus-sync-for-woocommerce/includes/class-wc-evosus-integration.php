@@ -632,7 +632,7 @@ class WooCommerce_Evosus_Integration {
             $shipping_method = $order->get_shipping_method();
 
             $line_items[] = [
-                'ItemCode' => 'SD-2204',
+                'ItemCode' => 'FREIGHTE2',
                 'Quantity' => 1,
                 'UnitPrice' => round($shipping_total, 2),
                 'Comment' => !empty($shipping_method) ? "Shipping: {$shipping_method}" : 'Shipping'
