@@ -593,6 +593,7 @@ class WooCommerce_Evosus_Integration {
     private function prepare_line_items($order) {
         $line_items = [];
 
+        // Add product line items
         foreach ($order->get_items() as $item_id => $item) {
             $product = $item->get_product();
             if (!$product) {
@@ -625,6 +626,19 @@ class WooCommerce_Evosus_Integration {
             ];
         }
 
+        // Add shipping as a line item if shipping cost exists
+        $shipping_total = $order->get_shipping_total();
+        if ($shipping_total > 0) {
+            $shipping_method = $order->get_shipping_method();
+
+            $line_items[] = [
+                'ItemCode' => 'SHIPPING',
+                'Quantity' => 1,
+                'UnitPrice' => round($shipping_total, 2),
+                'Comment' => !empty($shipping_method) ? "Shipping: {$shipping_method}" : 'Shipping'
+            ];
+        }
+
         return $line_items;
     }
 
@@ -640,27 +654,33 @@ class WooCommerce_Evosus_Integration {
         $wc_tax_rate = ($subtotal > 0) ? ($total_tax / $subtotal) : 0;
 
         // Map WooCommerce tax rate to Evosus SalesTax_PK
-        // These mappings are based on common Canadian tax rates
-        // Adjust these values based on your Evosus tax code configuration
+        // Based on your Evosus tax configuration:
+        // - "Not Taxed" / Exempt
+        // - GST (5%)
+        // - Harmonized Sales Tax (13%)
+        // - Harmonized Sales Tax (14%)
+        // - Harmonized Sales Tax (15%)
         $tax_rate_map = [
-            0.00 => 1,   // Exempt
+            0.00 => 1,   // "Not Taxed" / Exempt
             0.05 => 2,   // GST (5%)
-            0.13 => 7,   // HST (13%) - Ontario
-            0.14 => 11,  // HST (14%) - Nova Scotia
-            0.15 => 8,   // HST (15%) - Atlantic provinces
+            0.13 => 7,   // Harmonized Sales Tax (13%)
+            0.14 => 11,  // Harmonized Sales Tax (14%)
+            0.15 => 8,   // Harmonized Sales Tax (15%)
         ];
 
         // Find closest matching tax rate (within 0.5% tolerance)
         $tolerance = 0.005;
         foreach ($tax_rate_map as $rate => $tax_pk) {
             if (abs($wc_tax_rate - $rate) <= $tolerance) {
-                $this->logger->log_info("Matched WooCommerce tax rate {$wc_tax_rate} to Evosus SalesTax_PK {$tax_pk}");
+                $rate_percent = round($rate * 100, 2);
+                $this->logger->log_info("Matched WooCommerce tax rate {$rate_percent}% to Evosus SalesTax_PK {$tax_pk}");
                 return $tax_pk;
             }
         }
 
         // If no match found, log warning and return null (Evosus will use customer's default)
-        $this->logger->log_warning("No Evosus tax code match for WooCommerce tax rate: {$wc_tax_rate}. Using customer default.");
+        $rate_percent = round($wc_tax_rate * 100, 2);
+        $this->logger->log_warning("No Evosus tax code match for WooCommerce tax rate: {$rate_percent}%. Using customer default.");
         return null;
     }
 
