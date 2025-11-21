@@ -540,8 +540,30 @@ class WooCommerce_Evosus_Integration {
         // Use WooCommerce order number in the PO Number field
         $wc_order_number = $order->get_order_number();
 
-        // Get tax information from WooCommerce order
-        $sales_tax_pk = $this->get_evosus_tax_code($order);
+        // Build internal note with pricing/tax warning
+        $wc_total = $order->get_total();
+        $wc_tax_rate = $this->get_wc_tax_rate($order);
+
+        $internal_note = sprintf(
+            __('WooCommerce Order ID: %d | Created via API on %s', 'woocommerce-evosus-sync'),
+            $order->get_id(),
+            date('Y-m-d H:i:s')
+        );
+
+        $internal_note .= sprintf(
+            __("\n\nWARNING: Evosus API does not support custom pricing or tax rates.\n" .
+               "- WC Total: $%.2f (WC tax: %.1f%%)\n" .
+               "- Evosus will use its own catalog pricing and customer's default tax rate\n" .
+               "- Manual adjustment may be required if totals don't match", 'woocommerce-evosus-sync'),
+            $wc_total,
+            $wc_tax_rate * 100
+        );
+
+        $this->logger->log_warning(sprintf(
+            "API Limitation: Evosus will use its own pricing (not WC total $%.2f) and customer default tax (not WC rate %.1f%%)",
+            $wc_total,
+            $wc_tax_rate * 100
+        ));
 
         $order_data = [
             'args' => [
@@ -549,18 +571,16 @@ class WooCommerce_Evosus_Integration {
                 'BillTo_CustomerLocationID' => (string)$bill_to_location_id,
                 'ShipTo_CustomerLocationID' => (string)$ship_to_location_id,
                 'DistributionMethodID' => (string)$distribution_method_id,
-                'ExpectedOrderTotal' => Evosus_Helpers::format_price($order->get_total()),
+                'ExpectedOrderTotal' => Evosus_Helpers::format_price($wc_total),
                 'PONumber' => $wc_order_number,
-                'Order_Note' => sprintf(__('Order from WooCommerce #%s', 'woocommerce-evosus-sync'), $wc_order_number),
-                'Internal_Note' => sprintf(__('WooCommerce Order ID: %d | Created via API on %s', 'woocommerce-evosus-sync'), $order->get_id(), date('Y-m-d H:i:s')),
+                'Order_Note' => sprintf(__('Order from WooCommerce #%s - Total: $%.2f', 'woocommerce-evosus-sync'), $wc_order_number, $wc_total),
+                'Internal_Note' => $internal_note,
                 'LineItems' => $line_items
             ]
         ];
 
-        // Add SalesTax_PK if we have a mapped tax code
-        if (!empty($sales_tax_pk)) {
-            $order_data['args']['SalesTax_PK'] = (string)$sales_tax_pk;
-        }
+        // Log the order data being sent
+        $this->logger->log_info("Sending order to Evosus (WC Total: $" . $wc_total . ")");
 
         $response = $this->api_request('POST', '/method/Customer_Order_Add', $order_data);
 
@@ -612,21 +632,19 @@ class WooCommerce_Evosus_Integration {
                 $item_code = !empty($mapped_sku) ? $mapped_sku : ($wc_sku ?: 'WC_' . $product->get_id());
             }
 
-            // Calculate unit price from WooCommerce (price customer actually paid)
-            // This handles discounts, sale prices, etc.
+            // NOTE: Evosus API does NOT support UnitPrice parameter (not in official spec)
+            // Evosus will use its own catalog pricing regardless of what we send
             $quantity = $item->get_quantity();
-            $line_total = $item->get_total(); // Subtotal after discounts, excluding tax
-            $unit_price = $quantity > 0 ? ($line_total / $quantity) : 0;
 
             $line_items[] = [
                 'ItemCode' => $item_code,
                 'Quantity' => $quantity,
-                'UnitPrice' => round($unit_price, 2), // WooCommerce price (may differ from Evosus)
                 'Comment' => $item->get_name()
             ];
         }
 
         // Add shipping as a line item if shipping cost exists
+        // NOTE: Evosus will use FREIGHTE2's default price, not WooCommerce shipping cost
         $shipping_total = $order->get_shipping_total();
         if ($shipping_total > 0) {
             $shipping_method = $order->get_shipping_method();
@@ -634,7 +652,6 @@ class WooCommerce_Evosus_Integration {
             $line_items[] = [
                 'ItemCode' => 'FREIGHTE2',
                 'Quantity' => 1,
-                'UnitPrice' => round($shipping_total, 2),
                 'Comment' => !empty($shipping_method) ? "Shipping: {$shipping_method}" : 'Shipping'
             ];
         }
@@ -643,12 +660,12 @@ class WooCommerce_Evosus_Integration {
     }
 
     /**
-     * Get Evosus tax code (SalesTax_PK) based on WooCommerce tax rate
+     * Get WooCommerce tax rate from order (for logging/warnings only)
+     * NOTE: Evosus API does not support setting tax rates - it uses customer default
      */
-    private function get_evosus_tax_code($order) {
+    private function get_wc_tax_rate($order) {
         // Get tax items from order to extract actual rate
         $wc_tax_rate = 0;
-        $tax_rate_label = '';
 
         $taxes = $order->get_taxes();
         if (!empty($taxes)) {
@@ -657,7 +674,6 @@ class WooCommerce_Evosus_Integration {
                 if ($rate_id) {
                     // Get tax rate percentage
                     $tax_percent = WC_Tax::get_rate_percent($rate_id);
-                    $tax_rate_label = $tax->get_label();
 
                     // Extract numeric percentage (e.g., "5%" -> 0.05)
                     $wc_tax_rate = floatval(str_replace('%', '', $tax_percent)) / 100;
@@ -673,45 +689,7 @@ class WooCommerce_Evosus_Integration {
             $wc_tax_rate = ($subtotal > 0) ? ($total_tax / $subtotal) : 0;
         }
 
-        // Map WooCommerce tax rate to Evosus SalesTax_PK
-        // Based on your Evosus tax configuration:
-        // - "Not Taxed" / Exempt
-        // - GST (5%)
-        // - Harmonized Sales Tax (13%)
-        // - Harmonized Sales Tax (14%)
-        // - Harmonized Sales Tax (15%)
-        $tax_rate_map = [
-            0.00 => 1,   // "Not Taxed" / Exempt
-            0.05 => 2,   // GST (5%)
-            0.13 => 7,   // Harmonized Sales Tax (13%)
-            0.14 => 11,  // Harmonized Sales Tax (14%)
-            0.15 => 8,   // Harmonized Sales Tax (15%)
-        ];
-
-        // Find closest matching tax rate (within 0.5% tolerance)
-        $tolerance = 0.005;
-        foreach ($tax_rate_map as $rate => $tax_pk) {
-            if (abs($wc_tax_rate - $rate) <= $tolerance) {
-                $rate_percent = round($rate * 100, 2);
-                $log_msg = "Matched WooCommerce tax rate {$rate_percent}%";
-                if (!empty($tax_rate_label)) {
-                    $log_msg .= " ({$tax_rate_label})";
-                }
-                $log_msg .= " to Evosus SalesTax_PK {$tax_pk}";
-                $this->logger->log_info($log_msg);
-                return $tax_pk;
-            }
-        }
-
-        // If no match found, log warning and return null (Evosus will use customer's default)
-        $rate_percent = round($wc_tax_rate * 100, 2);
-        $log_msg = "No Evosus tax code match for WooCommerce tax rate: {$rate_percent}%";
-        if (!empty($tax_rate_label)) {
-            $log_msg .= " ({$tax_rate_label})";
-        }
-        $log_msg .= ". Using customer default.";
-        $this->logger->log_warning($log_msg);
-        return null;
+        return $wc_tax_rate;
     }
 
     /**
