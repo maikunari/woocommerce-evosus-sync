@@ -3,7 +3,7 @@
  * Plugin Name: WooCommerce Evosus Sync
  * Plugin URI: https://yourwebsite.com/woocommerce-evosus-sync
  * Description: Sync WooCommerce orders and customers to Evosus Business Management Software
- * Version: 2.0.0
+ * Version: 1.1.0
  * Author: maikunari
  * Author URI: https://sonicpixel.jp
  * License: GPL-2.0+
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WC_EVOSUS_VERSION', '2.0.0');
+define('WC_EVOSUS_VERSION', '1.1.0');
 define('WC_EVOSUS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WC_EVOSUS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WC_EVOSUS_PLUGIN_BASENAME', plugin_basename(__FILE__));
